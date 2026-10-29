@@ -1,0 +1,981 @@
+openapi: 3.0.3
+info:
+  title: TJUS Backend API (PajangAset)
+  description: Dokumentasi API Backend TJUS (PajangAset) menggunakan Go & Gin.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Development Server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Masukkan access token JWT kamu (tanpa kata Bearer).
+
+  schemas:
+    BaseResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "Success"
+        data:
+          type: object
+
+    Pagination:
+      type: object
+      properties:
+        current_page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total_items:
+          type: integer
+          example: 25
+        total_pages:
+          type: integer
+          example: 3
+
+    PaginatedResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: "Success Get Assets"
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetResponse'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          example: "admin@tjus.id"
+        password:
+          type: string
+          example: "secret123"
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    LogoutRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    AssetOwnerRequest:
+      type: object
+      properties:
+        owner_name:
+          type: string
+          example: "Bpk. Hendra Gunawan"
+        owner_contact:
+          type: string
+          example: "+62 812-8899-7722"
+        internal_notes:
+          type: string
+          example: "Unit standby di pool Karawang"
+
+    AttributeRequest:
+      type: object
+      properties:
+        attribute_id:
+          type: string
+          format: uuid
+        custome_label:
+          type: string
+          example: "Tahun"
+        value_text:
+          type: string
+          example: "2021"
+        value_number:
+          type: integer
+          example: 2021
+        sort_order:
+          type: integer
+          example: 1
+
+    AssetRequest:
+      type: object
+      required:
+        - category_id
+        - title
+        - location
+        - price
+      properties:
+        category_id:
+          type: string
+          format: uuid
+          example: "0df81e1e-6277-4cf0-a619-32281ec20f5c"
+        title:
+          type: string
+          example: "Truk Wingbox Isuzu Giga 2021"
+        location:
+          type: string
+          example: "Karawang Timur, Jawa Barat"
+        badge:
+          type: string
+          example: "Siap Pakai"
+        price_label:
+          type: string
+          example: "Harga Nett / Penawaran Tertinggi"
+        price:
+          type: integer
+          format: int64
+          example: 640000000
+        price_negotiable:
+          type: boolean
+          example: true
+        description:
+          type: string
+          example: "Isuzu Giga FVM 34 U Wingbox tahun 2021 siap operasional..."
+        owner:
+          $ref: '#/components/schemas/AssetOwnerRequest'
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttributeRequest'
+
+    UpdateAssetRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          format: uuid
+        general_update:
+          type: boolean
+          example: true
+        owner_update:
+          type: boolean
+          example: false
+        attribute_update:
+          type: boolean
+          example: false
+        status_update:
+          type: boolean
+          example: false
+        title:
+          type: string
+          example: "Truk Wingbox Isuzu Giga 2021 (Promo)"
+        location:
+          type: string
+          example: "Karawang Timur, Jawa Barat"
+        badge:
+          type: string
+          example: "Promo Cuci Gudang"
+        price_label:
+          type: string
+          example: "Harga Nett"
+        price:
+          type: integer
+          format: int64
+          example: 620000000
+        price_negotiable:
+          type: boolean
+          example: false
+        description:
+          type: string
+          example: "Deskripsi unit diperbarui siap jalan."
+        status:
+          type: string
+          example: "ACTIVE"
+        owner:
+          $ref: '#/components/schemas/AssetOwnerRequest'
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttributeRequest'
+
+    AssetAttributeResponse:
+      type: object
+      properties:
+        category_attribute_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+          example: "tahun"
+        data_type:
+          type: string
+          nullable: true
+          example: "number"
+        unit:
+          type: string
+          nullable: true
+          example: ""
+        custome_label:
+          type: string
+          example: "Tahun"
+        value_text:
+          type: string
+          example: "2021"
+        value_number:
+          type: integer
+          example: 2021
+        sort_order:
+          type: integer
+          example: 1
+
+    AssetMediaResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type_media:
+          type: string
+          example: "IMAGE"
+        file_path:
+          type: string
+          example: "/uploads/assets/AST-1729856-0.jpg"
+        sort_order:
+          type: integer
+          example: 1
+
+    AssetResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: "AST-1729856000"
+        slug:
+          type: string
+          example: "truk-wingbox-isuzu-giga-2021"
+        category_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: "Truk Wingbox Isuzu Giga 2021"
+        location:
+          type: string
+          example: "Karawang Timur, Jawa Barat"
+        description:
+          type: string
+        badge:
+          type: string
+        price_label:
+          type: string
+        price:
+          type: integer
+          format: int64
+        price_negotiable:
+          type: boolean
+        view_count:
+          type: integer
+        status:
+          type: string
+          example: "ACTIVE"
+        created_at:
+          type: string
+          format: date-time
+        owner:
+          $ref: '#/components/schemas/AssetOwnerResponse'
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetAttributeResponse'
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetMediaResponse'
+
+    CreatedCatRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: "Kendaraan"
+        description:
+          type: string
+          example: "Kategori truk, mobil, dan alat transportasi"
+
+    UpdateCatRequest:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+
+    CatResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+
+    AttributeItemRequest:
+      type: object
+      required:
+        - name
+        - data_type
+      properties:
+        name:
+          type: string
+          example: "tahun"
+        data_type:
+          type: string
+          example: "number"
+        unit:
+          type: string
+          example: ""
+        options:
+          type: array
+          items:
+            type: string
+          example: []
+        is_required:
+          type: boolean
+          example: true
+        show_on_card:
+          type: boolean
+          example: true
+        is_active:
+          type: boolean
+          example: true
+        sort_order:
+          type: integer
+          example: 1
+
+    CreatedCatAttrRequest:
+      type: object
+      required:
+        - category_id
+        - attributes
+      properties:
+        category_id:
+          type: string
+          format: uuid
+          example: "20fb06de-22b3-497e-81a2-af558b959236"
+        attributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttributeItemRequest'
+
+    UpdateCatAttrRequest:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type_data:
+          type: string
+        is_required:
+          type: boolean
+
+    CatAttrResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type_data:
+          type: string
+        is_required:
+          type: boolean
+
+    SettingsRequest:
+      type: object
+      properties:
+        site_name:
+          type: string
+          example: "PajangAset"
+        whatsapp_number:
+          type: string
+          example: "+628123456789"
+
+    UpdateSettingsRequest:
+      type: object
+      properties:
+        site_name:
+          type: string
+        whatsapp_number:
+          type: string
+
+    SettingResponse:
+      type: object
+      properties:
+        site_name:
+          type: string
+        whatsapp_number:
+          type: string
+
+paths:
+  # ==========================================
+  # AUTH
+  # ==========================================
+  /auth/login:
+    post:
+      summary: Login Admin
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        200:
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+        400:
+          description: Invalid request payload
+
+  /auth/logout:
+    post:
+      summary: Logout Admin
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        200:
+          description: Logout berhasil
+
+  # ==========================================
+  # ASSET
+  # ==========================================
+  /assets:
+    get:
+      summary: Daftar Katalog Aset (Paginated)
+      tags:
+        - Asset
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: q
+          in: query
+          required: false
+          description: Kata kunci pencarian judul, lokasi, atau kode aset
+          schema:
+            type: string
+            example: "isuzu"
+        - name: category_id
+          in: query
+          required: false
+          description: Filter berdasarkan UUID kategori
+          schema:
+            type: string
+            format: uuid
+        - name: min_price
+          in: query
+          required: false
+          description: Filter harga minimum
+          schema:
+            type: integer
+            format: int64
+            example: 100000000
+        - name: max_price
+          in: query
+          required: false
+          description: Filter harga maksimum
+          schema:
+            type: integer
+            format: int64
+            example: 800000000
+      responses:
+        200:
+          description: Sukses mengambil daftar aset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+
+    post:
+      summary: Buat Aset Baru
+      security:
+        - BearerAuth: []
+      tags:
+        - Asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetRequest'
+      responses:
+        200:
+          description: Aset berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+
+  /assets/admin:
+    get:
+      summary: Daftar Aset untuk Dashboard Admin (Filter Semua Status & Info Owner)
+      security:
+        - BearerAuth: []
+      tags:
+        - Asset
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: status
+          in: query
+          required: false
+          description: Filter status aset (misal ACTIVE, SOLD, BOOKED, DELETED, atau ALL)
+          schema:
+            type: string
+            example: "ALL"
+        - name: q
+          in: query
+          required: false
+          description: Kata kunci pencarian judul, lokasi, atau kode aset
+          schema:
+            type: string
+            example: "isuzu"
+        - name: category_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: min_price
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: max_price
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        200:
+          description: Sukses mengambil daftar aset admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+
+  /assets/{id}:
+    get:
+      summary: Detail Aset Berdasarkan ID (Admin - Menampilkan Data Owner)
+      security:
+        - BearerAuth: []
+      tags:
+        - Asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Detail aset ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+
+    delete:
+      summary: Soft Delete Aset (Ubah status menjadi DELETED)
+      security:
+        - BearerAuth: []
+      tags:
+        - Asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Aset berhasil dihapus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+
+  /assets/slug/{slug}:
+    get:
+      summary: Detail Aset Berdasarkan Slug (Halaman Publik)
+      tags:
+        - Asset
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Detail aset publik ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+
+  /assets/{id}/media:
+    post:
+      summary: Upload Media Foto Aset (Single / Batch)
+      security:
+        - BearerAuth: []
+      tags:
+        - Asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Pilih satu atau banyak foto sekaligus (maks 10MB per foto)
+      responses:
+        200:
+          description: Foto berhasil diupload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+
+  /assets/update:
+    post:
+      summary: Update Aset Secara Modular (Flag-based)
+      security:
+        - BearerAuth: []
+      tags:
+        - Asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssetRequest'
+      responses:
+        200:
+          description: Aset berhasil diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+
+  /assets/media/{media_id}:
+    delete:
+      summary: Hapus Foto Aset Tertentu
+      security:
+        - BearerAuth: []
+      tags:
+        - Asset
+      parameters:
+        - name: media_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Foto berhasil dihapus dari database dan server
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+
+  # ==========================================
+  # CATEGORY
+  # ==========================================
+  /category:
+    get:
+      summary: Ambil Semua Kategori
+      tags:
+        - Category
+      responses:
+        200:
+          description: Daftar kategori
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+
+    post:
+      summary: Buat Kategori Baru
+      security:
+        - BearerAuth: []
+      tags:
+        - Category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatedCatRequest'
+      responses:
+        200:
+          description: Kategori berhasil dibuat
+
+  /category/update:
+    post:
+      summary: Edit Kategori
+      security:
+        - BearerAuth: []
+      tags:
+        - Category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCatRequest'
+      responses:
+        200:
+          description: Kategori berhasil diupdate
+
+  /category/{id}:
+    delete:
+      summary: Hapus Kategori
+      security:
+        - BearerAuth: []
+      tags:
+        - Category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Kategori berhasil dihapus
+
+  /category/attribute:
+    post:
+      summary: Buat Atribut Spesifikasi Kategori (Batch / Array)
+      description: Menambahkan satu atau banyak atribut spesifikasi sekaligus untuk suatu kategori
+      security:
+        - BearerAuth: []
+      tags:
+        - Category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatedCatAttrRequest'
+      responses:
+        200:
+          description: Atribut berhasil dibuat
+
+  /category/attribute/update:
+    post:
+      summary: Edit Atribut Spesifikasi Kategori
+      security:
+        - BearerAuth: []
+      tags:
+        - Category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCatAttrRequest'
+      responses:
+        200:
+          description: Atribut berhasil diupdate
+
+  /category/{id}/attributes:
+    get:
+      summary: Ambil Atribut Berdasarkan ID Kategori
+      tags:
+        - Category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Daftar atribut kategori
+
+  /category/attribute/{attr_id}:
+    delete:
+      summary: Hapus Atribut Kategori
+      security:
+        - BearerAuth: []
+      tags:
+        - Category
+      parameters:
+        - name: attr_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Atribut berhasil dihapus
+
+  # ==========================================
+  # HEALTH
+  # ==========================================
+  /health:
+    get:
+      summary: Health Check Server
+      tags:
+        - Health
+      responses:
+        200:
+          description: Server hidup
+
+  /health/db:
+    get:
+      summary: Health Check Database
+      tags:
+        - Health
+      responses:
+        200:
+          description: Database PostgreSQL terhubung
+
+  # ==========================================
+  # SETTING
+  # ==========================================
+  /setting:
+    get:
+      summary: Ambil Pengaturan Web (Admin Only)
+      tags:
+        - Setting
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Pengaturan sistem
+
+    post:
+      summary: Buat Pengaturan Web (Admin Only)
+      tags:
+        - Setting
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsRequest'
+      responses:
+        200:
+          description: Pengaturan berhasil disimpan
+
+  /setting/update:
+    post:
+      summary: Update Pengaturan Web (Admin Only)
+      tags:
+        - Setting
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingsRequest'
+      responses:
+        200:
+          description: Pengaturan berhasil diupdate
