@@ -19,6 +19,10 @@ func (s *Server) SetupRouters() {
 }
 
 func NewServer(db *pgxpool.Pool, env *config.Environment) *Server {
+	if env.IsProduction() {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	e := gin.Default()
 
 	server := &Server{
