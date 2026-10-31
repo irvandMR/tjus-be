@@ -11,6 +11,7 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata  
 WORKDIR /app
 COPY --from=builder /app/tjus-app .
-COPY --from=builder /app/docs ./docs      
+COPY --from=builder /app/docs ./docs
+COPY --from=builder /app/migrations ./migrations
 EXPOSE 8080
 CMD ["./tjus-app"]

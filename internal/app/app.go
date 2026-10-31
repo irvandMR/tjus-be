@@ -9,6 +9,8 @@ func Run() {
 	db := config.InitDatabaseConfig(env)
 	defer db.Close()
 
+	config.RunMigrations(db)
+
 	server := NewServer(db, env)
 	server.Start()
 }
