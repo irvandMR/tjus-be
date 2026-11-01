@@ -1,58 +1,73 @@
-# TJUS Backend (PajangAset)
+# 🏷️ PAASET — Backend API
 
-Backend RESTful API untuk platform konsinyasi (titip jual) aset properti dan kendaraan, dibangun menggunakan **Go (Golang)**, **Gin Framework**, dan **PostgreSQL**.
+![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![Gin](https://img.shields.io/badge/Gin-Framework-008ECF?style=for-the-badge&logo=gin&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
----
-
-## 🚀 Tech Stack
-- **Language**: Go (Golang) 1.23+
-- **Web Framework**: Gin
-- **Database**: PostgreSQL dengan connection pooling (`pgx/v5`)
-- **Authentication**: Stateful JWT dengan instant revocation
-- **API Documentation**: OpenAPI 3.0 / Swagger UI
+Backend service for **PAASET**, an online catalog platform to showcase and manage consigned assets such as cars, trucks, heavy equipment, and properties.
 
 ---
 
-## 📋 Fitur Utama
+## 📖 About PAASET
 
-1. **Autentikasi & Sesi Admin**
-   - Login admin dengan hashing kata sandi (Bcrypt).
-   - Stateful JWT dengan pengecekan sesi aktif di database dan fitur *True Logout*.
+**PAASET** helps connect asset owners with buyers through a clean online catalog managed by an Admin team:
 
-2. **Katalog Publik & Pencarian Aset**
-   - Pencarian dinamis berbasis kata kunci (judul, lokasi, kode aset).
-   - Filter berdasarkan kategori serta batas harga minimum dan maksimum.
-   - Auto-increment penghitung tampilan (`view_count`) saat detail aset dibuka via slug.
-   - Proteksi privasi: data kontak dan catatan pemilik aset disembunyikan dari publik.
-
-3. **Manajemen Aset (Admin)**
-   - Pembuatan aset lengkap dengan atribut kustom dan data pemilik.
-   - Pembaruan modular berbasis flag (data umum, pemilik, atribut, status).
-   - *Soft delete* aset secara aman.
-
-4. **Manajemen Media (Foto Aset)**
-   - Upload banyak foto sekaligus (*batch upload*) dengan penamaan unik berbasis timestamp.
-   - Validasi keamanan file: batas ukuran, format gambar, dan *MIME sniffing* (`http.DetectContentType`).
-   - Penghapusan foto fisik dari storage disk lokal sekaligus dari database.
-
-5. **Kategori & Atribut Dinamis**
-   - Manajemen kategori aset serta atribut kustom yang fleksibel untuk tiap jenis kategori.
-
-6. **Pengaturan Sistem (Setting)**
-   - Konfigurasi identitas situs dan integrasi WhatsApp CS resmi (dilindungi autentikasi admin).
+- 🛒 **For Visitors (Public Catalog)**: Browse available units, search by keyword or location, filter by category and price range, sort listings (newest, lowest/highest price, most popular), and view detailed specifications and photos before contacting Admin via WhatsApp.
+- 🔐 **For Admins (Dashboard)**: Manage categories and custom specifications (e.g., Year, Transmission, Land Size), publish or update asset listings, upload unit photos, and store **private owner contact details & internal notes** safely (hidden from public visitors).
 
 ---
 
-## 📖 Dokumentasi API
-Dokumentasi API interaktif dapat diakses saat server berjalan:
-- **Swagger UI**: `http://localhost:8080/swagger`
-- **OpenAPI Spec**: `http://localhost:8080/swagger.yaml`
+## ✨ Main Features
+
+- 🗂️ **Flexible Categories & Specifications** — Create any asset category and define custom specification fields for each category.
+- 📸 **Asset & Photo Management** — Manage asset details, pricing, unit status (`ACTIVE`, `SOLD`, etc.), and multiple photos.
+- 🛡️ **Owner Privacy Protection** — Owner names, phone numbers, and internal workshop notes are visible only to logged-in Admins.
+- ⚙️ **Website Settings** — Manage site name and Admin WhatsApp contact number dynamically.
 
 ---
 
-## ▶️ Cara Menjalankan
-Jalankan aplikasi secara lokal:
+## 🧰 Prerequisites
+
+- 🐳 **Docker & Docker Compose** *(Recommended)*
+- 💻 Or **Go 1.26+**, **PostgreSQL**, and **Redis** *(if running manually without Docker)*
+
+---
+
+## 🚀 How to Run (Quick Start with Docker)
+
+### 1️⃣ Prepare the `.env` file
+Copy `.env.example` into `.env` and fill in your configuration values:
 ```bash
-go run cmd/tjus/main.go
+cp .env.example .env
 ```
-Aplikasi akan aktif di port `8080`.
+
+### 2️⃣ Start the application
+```bash
+docker compose up -d --build
+```
+This starts PostgreSQL, Redis, and the Backend API, and automatically creates all database tables.
+
+### 3️⃣ Open API Documentation
+- 🌐 **API Base URL**: `http://localhost:8080/api/v1`
+- 📚 **Swagger UI (Interactive Docs)**: `http://localhost:8080/swagger`
+
+---
+
+## 🛠️ Running Without Docker (Local Development)
+
+1. Make sure PostgreSQL and Redis are running on your machine, and update `DB_URL` & `REDIS_ADDR` in `.env`.
+2. Run the server:
+   ```bash
+   go mod download
+   go run ./cmd/tjus/main.go
+   ```
+
+---
+
+## 🧪 Running Tests
+
+```bash
+go test -v ./...
+```

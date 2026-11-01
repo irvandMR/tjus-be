@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -525,105 +523,35 @@ func (s *AssetService) UploadMedia(ctx context.Context, assetId uuid.UUID, files
 		return nil, errors.New("asset not found")
 	}
 
-	// 2. Batasi jumlah file per request (maksimal 10 file sekaligus)
-	const maxBatchFiles = 10
-	if len(files) > maxBatchFiles {
-		return nil, fmt.Errorf("maximum %d files allowed per upload", maxBatchFiles)
+	// 2. Validasi seluruh file secara dinamis menggunakan fileutil (All-or-Nothing sebelum disimpan ke disk)
+	err = util.ValidateUploadedFiles(files, util.FileValidationConfig{
+		MaxFiles:     10,
+		MaxFileSize:  10 * 1024 * 1024, // 10 MB per foto
+		AllowedExts:  map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true},
+		AllowedMimes: map[string]bool{"image/jpeg": true, "image/png": true, "image/webp": true},
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	allowedExts := map[string]bool{
-		".jpg":  true,
-		".jpeg": true,
-		".png":  true,
-		".webp": true,
-	}
-	allowedMimes := map[string]bool{
-		"image/jpeg": true,
-		"image/png":  true,
-		"image/webp": true,
-	}
-	const maxFileSize = 10 * 1024 * 1024 // 10 MB per foto
-
-	// 3. Pre-Validation Pass: Periksa SEMUA file sebelum ada yang disimpan ke disk (All-or-Nothing)
-	for _, file := range files {
-		// Tolak file kosong
-		if file.Size == 0 {
-			return nil, fmt.Errorf("file '%s' is empty (0 bytes)", file.Filename)
-		}
-
-		// Tolak file yang melebihi batas ukuran
-		if file.Size > maxFileSize {
-			return nil, fmt.Errorf("file '%s' exceeds maximum limit of 10MB", file.Filename)
-		}
-
-		// Validasi ekstensi file
-		ext := strings.ToLower(filepath.Ext(file.Filename))
-		if !allowedExts[ext] {
-			return nil, fmt.Errorf("file '%s' has invalid format: only jpg, jpeg, png, and webp are allowed", file.Filename)
-		}
-
-		// Validasi isi asli file (MIME Sniffing via http.DetectContentType)
-		src, err := file.Open()
-		if err != nil {
-			return nil, fmt.Errorf("failed to open uploaded file '%s': %w", file.Filename, err)
-		}
-
-		buf := make([]byte, 512)
-		n, err := src.Read(buf)
-		if err != nil && err != io.EOF {
-			src.Close()
-			return nil, fmt.Errorf("failed to inspect file content for '%s': %w", file.Filename, err)
-		}
-		src.Close()
-
-		detectedMime := http.DetectContentType(buf[:n])
-		if !allowedMimes[detectedMime] {
-			return nil, fmt.Errorf("file '%s' is not a valid image (detected: %s)", file.Filename, detectedMime)
-		}
-	}
-
-	// 4. Ambil media yang sudah ada untuk menentukan urutan (sort_order) lanjutan
+	// 3. Ambil media yang sudah ada untuk menentukan urutan (sort_order) lanjutan
 	existingMedia, err := s.assetRepo.FindMediaByAssetId(ctx, assetId)
 	if err != nil {
 		return nil, err
 	}
 	currentSortOrder := len(existingMedia)
 
-	// 5. Pastikan folder penyimpanan lokal tersedia
 	uploadDir := "uploads/assets"
-	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
-		return nil, fmt.Errorf("failed to create upload directory: %w", err)
-	}
-
 	var responses []AssetMediaResponse
 
-	// 6. Eksekusi penyimpanan file ke disk & database (karena semua file sudah terverifikasi aman)
+	// 4. Eksekusi penyimpanan file ke disk & database
 	for i, file := range files {
 		ext := strings.ToLower(filepath.Ext(file.Filename))
-
-		// Generate nama file unik
 		fileName := fmt.Sprintf("%s-%d-%d%s", assetId.String()[:8], time.Now().UnixNano(), i, ext)
 		fullLocalPath := filepath.Join(uploadDir, fileName)
 
-		// Simpan fisik file ke storage lokal
-		src, err := file.Open()
-		if err != nil {
-			return nil, fmt.Errorf("failed to open uploaded file '%s': %w", file.Filename, err)
-		}
-
-		dst, err := os.Create(fullLocalPath)
-		if err != nil {
-			src.Close()
-			return nil, fmt.Errorf("failed to save file '%s' to disk: %w", file.Filename, err)
-		}
-
-		_, copyErr := io.Copy(dst, src)
-		src.Close()
-		dst.Close()
-
-		if copyErr != nil {
-			_ = os.Remove(fullLocalPath)
-			return nil, fmt.Errorf("failed to write content for file '%s': %w", file.Filename, copyErr)
+		if err := util.SaveUploadedFile(file, fullLocalPath); err != nil {
+			return nil, err
 		}
 
 		// Simpan record ke database tbl_asset_media

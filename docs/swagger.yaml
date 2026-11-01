@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
-  title: TJUS Backend API (PajangAset)
-  description: Dokumentasi API Backend TJUS (PajangAset) menggunakan Go & Gin.
+  title: PAASET Backend API
+  description: Dokumentasi API Backend PAASET menggunakan Go & Gin.
   version: 1.0.0
 servers:
   - url: http://localhost:8080/api/v1

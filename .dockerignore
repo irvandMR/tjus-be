@@ -5,4 +5,5 @@ tasks
 notes
 *.exe
 *.out
-*.out
+AGENTS.md
+.agents
