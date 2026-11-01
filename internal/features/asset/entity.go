@@ -123,6 +123,7 @@ type AssetFilter struct {
 	MinPrice   *int64     `form:"min_price"`
 	MaxPrice   *int64     `form:"max_price"`
 	Status     *string    `form:"status"`
+	Sort       string     `form:"sort"`
 	Page       int        `form:"page"`
 	Limit      int        `form:"limit"`
 	Offset     int        `form:"-"`

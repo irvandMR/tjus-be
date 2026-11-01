@@ -2,7 +2,6 @@ package asset
 
 import (
 	"tjus-be/internal/config"
-	"tjus-be/internal/features/auth"
 	"tjus-be/internal/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -15,8 +14,7 @@ func SetAssetRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environme
 	service := NewAssetService(repository, rdb)
 	handler := NewAssetHandler(service)
 
-	authRepo := auth.NewAuthRepository(db)
-	authMiddleware := middleware.AuthMiddleware(authRepo, env)
+	authMiddleware := middleware.AuthMiddleware(rdb, env)
 
 	assetGroup := rg.Group("/assets")
 	{

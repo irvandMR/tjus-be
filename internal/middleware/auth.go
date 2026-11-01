@@ -6,15 +6,15 @@ import (
 	"net/http"
 	"strings"
 	"tjus-be/internal/config"
-	"tjus-be/internal/features/auth"
 	"tjus-be/internal/pkg/util"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
-func AuthMiddleware(authRepo auth.AuthRepository, env *config.Environment) gin.HandlerFunc {
+func AuthMiddleware(rdb *redis.Client, env *config.Environment) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		authHeader := ctx.GetHeader("Authorization")
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -52,16 +52,14 @@ func AuthMiddleware(authRepo auth.AuthRepository, env *config.Environment) gin.H
 			return
 		}
 
-		userId, err := uuid.Parse(userIdStr)
-		if err != nil {
+		if _, err := uuid.Parse(userIdStr); err != nil {
 			util.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: invalid user id format")
 			ctx.Abort()
 			return
 		}
 
-		// Pengecekan Stateful Token lewat AuthRepository (query ada di repo)
-		activeToken, err := authRepo.FindTokenByUserId(ctx.Request.Context(), userId)
-		if err != nil || activeToken == nil || *activeToken != tokenString {
+		// Cek apakah token masuk daftar hitam (sudah Logout) di RAM Redis (0 query ke PostgreSQL!)
+		if util.ExistsCache(ctx.Request.Context(), rdb, util.TokenBlacklistKey(tokenString)) {
 			util.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: session expired or logged out")
 			ctx.Abort()
 			return

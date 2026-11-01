@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"tjus-be/internal/config"
+	"tjus-be/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,16 +18,21 @@ type Server struct {
 	Redis  *redis.Client
 }
 
-func (s *Server) SetupRouters() {
-	SetRouter(s)
-}
-
 func (s *Server) SetupConfiguration() {
 	cfg := config.InitConfig()
 	s.Cfg = cfg
 	s.DB = cfg.DB
 	s.Env = cfg.Env
 	s.Redis = cfg.Redis
+}
+
+func (s *Server) SetupMiddlewares() {
+	s.Engine.Use(gin.Recovery())
+	s.Engine.Use(middleware.LoggerMiddleware(s.Env.IsProduction()))
+}
+
+func (s *Server) SetupRouters() {
+	SetRouter(s)
 }
 
 func (s *Server) Close() {
@@ -43,7 +49,8 @@ func NewServer() *Server {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	server.Engine = gin.Default()
+	server.Engine = gin.New()
+	server.SetupMiddlewares()
 	server.SetupRouters()
 
 	return server

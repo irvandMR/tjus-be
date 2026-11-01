@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"fmt"
 	"net/http"
 	"tjus-be/internal/pkg/util"
 
@@ -29,7 +28,6 @@ func (a *AuthHandler) Login(c *gin.Context) {
 	}
 
 	resp, err := a.authService.Login(c.Request.Context(), &req)
-	fmt.Println("err : ", err)
 	if err != nil {
 		util.ResponseError(c, http.StatusInternalServerError, err.Error())
 		return

@@ -21,19 +21,18 @@ func SetRouter(s *Server) {
 	health.SetHealthRouter(version, s.DB)
 
 	//auth
-	auth.SetAuthRouter(version, s.DB, s.Env)
+	auth.SetAuthRouter(version, s.DB, s.Env, s.Redis)
 
 	// Category
-	category.SetCategoryRouter(version, s.DB, s.Env)
+	category.SetCategoryRouter(version, s.DB, s.Env, s.Redis)
 
 	// Setting
-	setting.SetSettingRouting(version, s.DB, s.Env)
+	setting.SetSettingRouting(version, s.DB, s.Env, s.Redis)
 
 	// Asset
 	asset.SetAssetRouter(version, s.DB, s.Env, s.Redis)
 
-	authRepo := auth.NewAuthRepository(s.DB)
-	authMiddleware := middleware.AuthMiddleware(authRepo, s.Env)
+	authMiddleware := middleware.AuthMiddleware(s.Redis, s.Env)
 	version.GET("/test", authMiddleware, func(ctx *gin.Context) {
 		ctx.JSON(200, gin.H{"message": "Selamat! Kamu lolos pemeriksaan satpam!"})
 	})

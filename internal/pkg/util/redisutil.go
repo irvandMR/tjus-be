@@ -8,6 +8,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+func TokenBlacklistKey(token string) string {
+	return "auth:blacklist:" + token
+}
+
 // GetCache mengambil JSON dari Redis lalu otomatis mengubahnya ke struct tujuan (dest).
 // Return true kalau data ketemu (Cache Hit), false kalau kosong/error (Cache Miss).
 func GetCache(ctx context.Context, rdb *redis.Client, key string, dest any) bool {
@@ -48,4 +52,18 @@ func DeleteCache(ctx context.Context, rdb *redis.Client, keys ...string) error {
 	}
 
 	return rdb.Del(ctx, keys...).Err()
+}
+
+// ExistsCache mengecek apakah sebuah key ada di dalam RAM Redis.
+func ExistsCache(ctx context.Context, rdb *redis.Client, key string) bool {
+	if rdb == nil || key == "" {
+		return false
+	}
+
+	count, err := rdb.Exists(ctx, key).Result()
+	if err != nil {
+		return false
+	}
+
+	return count > 0
 }
