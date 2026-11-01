@@ -67,3 +67,21 @@ func ExistsCache(ctx context.Context, rdb *redis.Client, key string) bool {
 
 	return count > 0
 }
+
+// IncrementCounter menambah angka penghitung +1 di Redis secara atomic dan memasang TTL saat pertama kali dibuat.
+func IncrementCounter(ctx context.Context, rdb *redis.Client, key string, ttl time.Duration) (int64, error) {
+	if rdb == nil || key == "" {
+		return 0, nil
+	}
+
+	count, err := rdb.Incr(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+
+	if count == 1 && ttl > 0 {
+		_ = rdb.Expire(ctx, key, ttl).Err()
+	}
+
+	return count, nil
+}

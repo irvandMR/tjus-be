@@ -15,8 +15,9 @@ func NewAuthHandler(authService *AuthService) *AuthHandler {
 	return &AuthHandler{authService: authService}
 }
 
-func (a *AuthHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/login", a.Login)
+func (a *AuthHandler) RegisterRoutes(rg *gin.RouterGroup, loginMiddlewares ...gin.HandlerFunc) {
+	loginHandlers := append(loginMiddlewares, a.Login)
+	rg.POST("/login", loginHandlers...)
 	rg.POST("/logout", a.Logout)
 }
 
@@ -29,7 +30,7 @@ func (a *AuthHandler) Login(c *gin.Context) {
 
 	resp, err := a.authService.Login(c.Request.Context(), &req)
 	if err != nil {
-		util.ResponseError(c, http.StatusInternalServerError, err.Error())
+		util.ResponseError(c, http.StatusUnauthorized, err.Error())
 		return
 	}
 	util.ResponseSuccess(c, "Login success", resp)

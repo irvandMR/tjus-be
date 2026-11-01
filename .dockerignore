@@ -4,3 +4,5 @@ uploads
 tasks
 notes
 *.exe
+*.out
+*.out

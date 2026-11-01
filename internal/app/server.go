@@ -1,7 +1,13 @@
 package app
 
 import (
-	"fmt"
+	"context"
+	"errors"
+	"log"
+	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
 	"tjus-be/internal/config"
 	"tjus-be/internal/middleware"
 
@@ -57,6 +63,30 @@ func NewServer() *Server {
 }
 
 func (s *Server) Start() {
-	fmt.Println("Starting the application...")
-	s.Engine.Run(":" + s.Env.Port)
+	srv := &http.Server{
+		Addr:    ":" + s.Env.Port,
+		Handler: s.Engine,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		log.Printf("Starting the application on port %s...", s.Env.Port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("Server listen error: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("Shutting down server gracefully...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server exited cleanly")
 }

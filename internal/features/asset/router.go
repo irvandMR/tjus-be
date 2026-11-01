@@ -1,6 +1,7 @@
 package asset
 
 import (
+	"time"
 	"tjus-be/internal/config"
 	"tjus-be/internal/features/category"
 	"tjus-be/internal/middleware"
@@ -17,6 +18,7 @@ func SetAssetRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environme
 	handler := NewAssetHandler(service)
 
 	authMiddleware := middleware.AuthMiddleware(rdb, env)
+	uploadLimiter := middleware.RateLimitMiddleware(rdb, "upload_media", 10, time.Minute)
 
 	assetGroup := rg.Group("/assets")
 	{
@@ -29,7 +31,7 @@ func SetAssetRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environme
 		assetGroup.GET("/:id", authMiddleware, handler.GetAssetById)
 		assetGroup.POST("", authMiddleware, handler.CreateAsset)
 		assetGroup.POST("/update", authMiddleware, handler.UpdateAsset)
-		assetGroup.POST("/:id/media", authMiddleware, handler.UploadMedia)
+		assetGroup.POST("/:id/media", authMiddleware, uploadLimiter, handler.UploadMedia)
 		assetGroup.DELETE("/media/:media_id", authMiddleware, handler.DeleteMedia)
 		assetGroup.DELETE("/:id", authMiddleware, handler.DeleteAsset)
 	}
