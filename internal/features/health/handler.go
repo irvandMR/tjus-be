@@ -2,7 +2,7 @@ package health
 
 import (
 	"net/http"
-	"tjus-be/internal/pkg/httputil"
+	"tjus-be/internal/pkg/util"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,14 +25,14 @@ func (h *HealthHandler) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 func (h *HealthHandler) GetHealthHandler(c *gin.Context) {
-	httputil.ResponseSuccess(c, "Server is running", nil)
+	util.ResponseSuccess(c, "Server is running", nil)
 }
 
 func (h *HealthHandler) GetHealthHandlerDB(c *gin.Context) {
 	err := h.db.Ping(c.Request.Context())
 	if err != nil {
-		httputil.ResponseError(c, http.StatusInternalServerError, "Database is unreachable")
+		util.ResponseError(c, http.StatusInternalServerError, "Database is unreachable")
 		return
 	}
-	httputil.ResponseSuccess(c, "Database is healthy", nil)
+	util.ResponseSuccess(c, "Database is healthy", nil)
 }

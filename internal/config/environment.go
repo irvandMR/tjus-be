@@ -12,6 +12,7 @@ type Environment struct {
 	Port        string
 	JwtSecret   string
 	AppEnv      string
+	RedisAddr   string
 }
 
 func LoadEnvironment() *Environment {
@@ -25,6 +26,7 @@ func LoadEnvironment() *Environment {
 		Port:        os.Getenv("PORT"),
 		JwtSecret:   os.Getenv("JWT_SECRET"),
 		AppEnv:      os.Getenv("APP_ENV"),
+		RedisAddr:   os.Getenv("REDIS_ADDR"),
 	}
 }
 

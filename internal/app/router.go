@@ -30,7 +30,7 @@ func SetRouter(s *Server) {
 	setting.SetSettingRouting(version, s.DB, s.Env)
 
 	// Asset
-	asset.SetAssetRouter(version, s.DB, s.Env)
+	asset.SetAssetRouter(version, s.DB, s.Env, s.Redis)
 
 	authRepo := auth.NewAuthRepository(s.DB)
 	authMiddleware := middleware.AuthMiddleware(authRepo, s.Env)

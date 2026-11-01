@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -12,17 +13,40 @@ import (
 	"strings"
 	"time"
 	"tjus-be/internal/pkg/entity"
-	"tjus-be/internal/pkg/httputil"
+	"tjus-be/internal/pkg/util"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
+const assetCacheTTL = 30 * time.Minute
+
 type AssetService struct {
-	assetRepo AssetRepository
+	assetRepo   AssetRepository
+	redisClient *redis.Client
 }
 
-func NewAssetService(assetRepo AssetRepository) *AssetService {
-	return &AssetService{assetRepo: assetRepo}
+func NewAssetService(assetRepo AssetRepository, redisClient *redis.Client) *AssetService {
+	return &AssetService{
+		assetRepo:   assetRepo,
+		redisClient: redisClient,
+	}
+}
+
+func assetSlugCacheKey(slug string) string {
+	return "asset:slug:" + slug
+}
+
+func (s *AssetService) invalidateAssetCache(ctx context.Context, slug string) {
+	if s.redisClient == nil || slug == "" {
+		return
+	}
+	cacheKey := assetSlugCacheKey(slug)
+	if err := util.DeleteCache(ctx, s.redisClient, cacheKey); err != nil {
+		log.Printf("[REDIS] Gagal hapus cache %s: %v", cacheKey, err)
+	} else {
+		log.Printf("[CACHE INVALIDATED] %s dihapus dari Redis", cacheKey)
+	}
 }
 
 // CreateAsset menangani orkestrasi pembuatan aset, pemilik (owner), dan atribut sekaligus
@@ -169,6 +193,19 @@ func (s *AssetService) GetAssetById(ctx context.Context, id uuid.UUID) (*AssetRe
 
 // GetAssetBySlug mengambil data lengkap aset berdasarkan Slug (halaman publik pengunjung - TANPA data owner)
 func (s *AssetService) GetAssetBySlug(ctx context.Context, slug string) (*AssetResponse, error) {
+	start := time.Now()
+	cacheKey := assetSlugCacheKey(slug)
+
+	// 1. Cek di RAM Redis terlebih dahulu (Cache-Aside)
+	var cachedResp AssetResponse
+	if util.GetCache(ctx, s.redisClient, cacheKey, &cachedResp) {
+		log.Printf("[CACHE HIT - Redis] %s selesai dalam %v", cacheKey, time.Since(start))
+		go s.assetRepo.IncrementViewCount(context.Background(), cachedResp.Id)
+		cachedResp.ViewCount++
+		return &cachedResp, nil
+	}
+
+	// 2. Cache Miss: Ambil dari PostgreSQL
 	asset, err := s.assetRepo.FindBySlug(ctx, slug)
 	if err != nil {
 		return nil, err
@@ -183,7 +220,17 @@ func (s *AssetService) GetAssetBySlug(ctx context.Context, slug string) (*AssetR
 	asset.ViewCount++
 
 	// includeOwner = false: data nomor HP dan catatan rahasia pemilik disembunyikan dari publik
-	return s.mapToAssetResponse(ctx, asset, false)
+	resp, err := s.mapToAssetResponse(ctx, asset, false)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[CACHE MISS - Postgres] %s selesai dalam %v", cacheKey, time.Since(start))
+
+	// 3. Simpan hasil ke Redis dengan TTL 30 menit
+	_ = util.SetCache(ctx, s.redisClient, cacheKey, resp, assetCacheTTL)
+
+	return resp, nil
 }
 
 // mapToAssetResponse helper untuk memetakan entity aset dengan atribut, media, dan opsi owner
@@ -267,7 +314,7 @@ func generateSlug(text string) string {
 }
 
 // GetAllAssets mengambil daftar aset aktif dengan dukungan pencarian, filtering, dan pagination
-func (s *AssetService) GetAllAssets(ctx context.Context, filter AssetFilter) ([]AssetResponse, httputil.Pagination, error) {
+func (s *AssetService) GetAllAssets(ctx context.Context, filter AssetFilter) ([]AssetResponse, util.Pagination, error) {
 	if filter.Page <= 0 {
 		filter.Page = 1
 	}
@@ -285,7 +332,7 @@ func (s *AssetService) GetAllAssets(ctx context.Context, filter AssetFilter) ([]
 
 	assets, total, err := s.assetRepo.FindAll(ctx, filter)
 	if err != nil {
-		return nil, httputil.Pagination{}, err
+		return nil, util.Pagination{}, err
 	}
 
 	totalPages := 0
@@ -296,7 +343,7 @@ func (s *AssetService) GetAllAssets(ctx context.Context, filter AssetFilter) ([]
 		}
 	}
 
-	pagination := httputil.Pagination{
+	pagination := util.Pagination{
 		CurrentPage: filter.Page,
 		Limit:       filter.Limit,
 		TotalItems:  total,
@@ -308,7 +355,7 @@ func (s *AssetService) GetAllAssets(ctx context.Context, filter AssetFilter) ([]
 		// Ambil media (gambar/thumbnail) untuk preview aset pada list catalog
 		mediaList, err := s.assetRepo.FindMediaByAssetId(ctx, a.Id)
 		if err != nil {
-			return nil, httputil.Pagination{}, err
+			return nil, util.Pagination{}, err
 		}
 
 		mediaResp := make([]AssetMediaResponse, 0, len(mediaList))
@@ -345,7 +392,7 @@ func (s *AssetService) GetAllAssets(ctx context.Context, filter AssetFilter) ([]
 }
 
 // GetAdminAssets mengambil daftar aset untuk dashboard Admin (bisa filter semua status dan menyertakan data owner)
-func (s *AssetService) GetAdminAssets(ctx context.Context, filter AssetFilter) ([]AssetResponse, httputil.Pagination, error) {
+func (s *AssetService) GetAdminAssets(ctx context.Context, filter AssetFilter) ([]AssetResponse, util.Pagination, error) {
 	if filter.Page <= 0 {
 		filter.Page = 1
 	}
@@ -360,7 +407,7 @@ func (s *AssetService) GetAdminAssets(ctx context.Context, filter AssetFilter) (
 	// Catatan: untuk admin, filter.Status TIDAK dipaksa ke ACTIVE. Admin bebas memfilter status apapun.
 	assets, total, err := s.assetRepo.FindAll(ctx, filter)
 	if err != nil {
-		return nil, httputil.Pagination{}, err
+		return nil, util.Pagination{}, err
 	}
 
 	totalPages := 0
@@ -371,7 +418,7 @@ func (s *AssetService) GetAdminAssets(ctx context.Context, filter AssetFilter) (
 		}
 	}
 
-	pagination := httputil.Pagination{
+	pagination := util.Pagination{
 		CurrentPage: filter.Page,
 		Limit:       filter.Limit,
 		TotalItems:  total,
@@ -563,6 +610,7 @@ func (s *AssetService) UploadMedia(ctx context.Context, assetId uuid.UUID, files
 		})
 	}
 
+	s.invalidateAssetCache(ctx, asset.Slug)
 	return responses, nil
 }
 
@@ -680,7 +728,10 @@ func (s *AssetService) UpdateAsset(ctx context.Context, req *UpdateAssetRequest)
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	// 9. Kembalikan data aset terupdate secara lengkap
+	// 9. Hapus cache lama di Redis agar pengunjung langsung mendapat data terbaru
+	s.invalidateAssetCache(ctx, existingAsset.Slug)
+
+	// 10. Kembalikan data aset terupdate secara lengkap
 	return s.GetAssetById(ctx, req.Id)
 }
 
@@ -704,6 +755,11 @@ func (s *AssetService) DeleteMedia(ctx context.Context, mediaId uuid.UUID) error
 		return fmt.Errorf("failed to delete media record: %w", err)
 	}
 
+	// 4. Hapus cache aset terkait di Redis
+	if asset, err := s.assetRepo.FindById(ctx, media.AssetId); err == nil && asset != nil {
+		s.invalidateAssetCache(ctx, asset.Slug)
+	}
+
 	return nil
 }
 
@@ -719,5 +775,11 @@ func (s *AssetService) DeleteAsset(ctx context.Context, id uuid.UUID) error {
 	}
 
 	// 2. Eksekusi soft delete di repository
-	return s.assetRepo.DeleteAsset(ctx, id)
+	if err := s.assetRepo.DeleteAsset(ctx, id); err != nil {
+		return err
+	}
+
+	// 3. Hapus cache aset dari Redis agar tidak lagi bisa diakses publik
+	s.invalidateAssetCache(ctx, asset.Slug)
+	return nil
 }

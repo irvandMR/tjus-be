@@ -7,11 +7,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
-func SetAssetRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environment) {
+func SetAssetRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environment, rdb *redis.Client) {
 	repository := NewAssetRepository(db)
-	service := NewAssetService(repository)
+	service := NewAssetService(repository, rdb)
 	handler := NewAssetHandler(service)
 
 	authRepo := auth.NewAuthRepository(db)
