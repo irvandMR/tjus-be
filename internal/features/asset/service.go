@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"tjus-be/internal/features/category"
 	"tjus-be/internal/pkg/entity"
 	"tjus-be/internal/pkg/util"
 
@@ -23,12 +24,14 @@ const assetCacheTTL = 30 * time.Minute
 
 type AssetService struct {
 	assetRepo   AssetRepository
+	catRepo     category.CategoryRepository
 	redisClient *redis.Client
 }
 
-func NewAssetService(assetRepo AssetRepository, redisClient *redis.Client) *AssetService {
+func NewAssetService(assetRepo AssetRepository, catRepo category.CategoryRepository, redisClient *redis.Client) *AssetService {
 	return &AssetService{
 		assetRepo:   assetRepo,
+		catRepo:     catRepo,
 		redisClient: redisClient,
 	}
 }
@@ -49,11 +52,47 @@ func (s *AssetService) invalidateAssetCache(ctx context.Context, slug string) {
 	}
 }
 
+func (s *AssetService) validateCategoryAndAttributes(ctx context.Context, categoryId uuid.UUID, attrs []AttributeRequest) error {
+	cat, err := s.catRepo.FindById(ctx, categoryId)
+	if err != nil {
+		return err
+	}
+	if cat == nil {
+		return errors.New("category not found")
+	}
+
+	if len(attrs) > 0 {
+		validAttrs, err := s.catRepo.FindAttributesByCategoryId(ctx, categoryId)
+		if err != nil {
+			return err
+		}
+
+		validMap := make(map[uuid.UUID]bool, len(validAttrs))
+		for _, va := range validAttrs {
+			validMap[va.Id] = true
+		}
+
+		for _, reqAttr := range attrs {
+			if !validMap[reqAttr.CategoryAttributeId] {
+				if strings.TrimSpace(reqAttr.CustomeLabel) != "" {
+					return fmt.Errorf("attribute '%s' not found for category '%s'", reqAttr.CustomeLabel, cat.Name)
+				}
+				return fmt.Errorf("attribute not found for category '%s'", cat.Name)
+			}
+		}
+	}
+
+	return nil
+}
+
 // CreateAsset menangani orkestrasi pembuatan aset, pemilik (owner), dan atribut sekaligus
 func (s *AssetService) CreateAsset(ctx context.Context, req *AssetRequest) (*AssetResponse, error) {
-	// 1. Validasi input dasar
+	// 1. Validasi input dasar & relasi kategori/atribut (Fail-Fast sebelum buka transaksi)
 	if strings.TrimSpace(req.Title) == "" {
 		return nil, errors.New("title cannot be empty")
+	}
+	if err := s.validateCategoryAndAttributes(ctx, req.CategoryId, req.Attributes); err != nil {
+		return nil, err
 	}
 
 	// 2. Generate Kode Unik dan Slug
@@ -628,6 +667,13 @@ func (s *AssetService) UpdateAsset(ctx context.Context, req *UpdateAssetRequest)
 	}
 	if existingAsset == nil {
 		return nil, errors.New("asset not found")
+	}
+
+	// 2b. Jika mengupdate atribut, validasi dulu atributnya cocok dengan kategori aset sebelum buka transaksi
+	if req.AttributeUpdate && len(req.Attributes) > 0 {
+		if err := s.validateCategoryAndAttributes(ctx, existingAsset.CategoryId, req.Attributes); err != nil {
+			return nil, err
+		}
 	}
 
 	// 3. Buka transaksi database
