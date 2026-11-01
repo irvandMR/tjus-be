@@ -1,21 +1,24 @@
 package asset
 
 import (
+	"time"
 	"tjus-be/internal/config"
-	"tjus-be/internal/features/auth"
+	"tjus-be/internal/features/category"
 	"tjus-be/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
-func SetAssetRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environment) {
+func SetAssetRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environment, rdb *redis.Client) {
 	repository := NewAssetRepository(db)
-	service := NewAssetService(repository)
+	catRepository := category.NewCategoryRepository(db)
+	service := NewAssetService(repository, catRepository, rdb)
 	handler := NewAssetHandler(service)
 
-	authRepo := auth.NewAuthRepository(db)
-	authMiddleware := middleware.AuthMiddleware(authRepo, env)
+	authMiddleware := middleware.AuthMiddleware(rdb, env)
+	uploadLimiter := middleware.RateLimitMiddleware(rdb, "upload_media", 10, time.Minute)
 
 	assetGroup := rg.Group("/assets")
 	{
@@ -28,7 +31,7 @@ func SetAssetRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environme
 		assetGroup.GET("/:id", authMiddleware, handler.GetAssetById)
 		assetGroup.POST("", authMiddleware, handler.CreateAsset)
 		assetGroup.POST("/update", authMiddleware, handler.UpdateAsset)
-		assetGroup.POST("/:id/media", authMiddleware, handler.UploadMedia)
+		assetGroup.POST("/:id/media", authMiddleware, uploadLimiter, handler.UploadMedia)
 		assetGroup.DELETE("/media/:media_id", authMiddleware, handler.DeleteMedia)
 		assetGroup.DELETE("/:id", authMiddleware, handler.DeleteAsset)
 	}

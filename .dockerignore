@@ -1,0 +1,8 @@
+.env
+.git
+uploads
+tasks
+notes
+*.exe
+*.out
+*.out

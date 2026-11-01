@@ -6,21 +6,21 @@ import (
 	"net/http"
 	"strings"
 	"tjus-be/internal/config"
-	"tjus-be/internal/features/auth"
-	"tjus-be/internal/pkg/httputil"
+	"tjus-be/internal/pkg/util"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
-func AuthMiddleware(authRepo auth.AuthRepository, env *config.Environment) gin.HandlerFunc {
+func AuthMiddleware(rdb *redis.Client, env *config.Environment) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		authHeader := ctx.GetHeader("Authorization")
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
 		if tokenString == "" {
-			httputil.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: missing token")
+			util.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: missing token")
 			ctx.Abort()
 			return
 		}
@@ -33,36 +33,34 @@ func AuthMiddleware(authRepo auth.AuthRepository, env *config.Environment) gin.H
 		})
 
 		if err != nil || !token.Valid {
-			httputil.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: invalid or expired token")
+			util.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: invalid or expired token")
 			ctx.Abort()
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			httputil.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: invalid claims")
+			util.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: invalid claims")
 			ctx.Abort()
 			return
 		}
 
 		userIdStr, ok := claims["user_id"].(string)
 		if !ok {
-			httputil.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: invalid user id claim")
+			util.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: invalid user id claim")
 			ctx.Abort()
 			return
 		}
 
-		userId, err := uuid.Parse(userIdStr)
-		if err != nil {
-			httputil.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: invalid user id format")
+		if _, err := uuid.Parse(userIdStr); err != nil {
+			util.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: invalid user id format")
 			ctx.Abort()
 			return
 		}
 
-		// Pengecekan Stateful Token lewat AuthRepository (query ada di repo)
-		activeToken, err := authRepo.FindTokenByUserId(ctx.Request.Context(), userId)
-		if err != nil || activeToken == nil || *activeToken != tokenString {
-			httputil.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: session expired or logged out")
+		// Cek apakah token masuk daftar hitam (sudah Logout) di RAM Redis (0 query ke PostgreSQL!)
+		if util.ExistsCache(ctx.Request.Context(), rdb, util.TokenBlacklistKey(tokenString)) {
+			util.ResponseError(ctx, http.StatusUnauthorized, "unauthorized: session expired or logged out")
 			ctx.Abort()
 			return
 		}

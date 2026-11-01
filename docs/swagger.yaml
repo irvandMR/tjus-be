@@ -548,6 +548,14 @@ paths:
             type: integer
             format: int64
             example: 800000000
+        - name: sort
+          in: query
+          required: false
+          description: "Urutan katalog: newest (terbaru), oldest (terlama), price_asc (termurah), price_desc (termahal), popular (paling banyak dilihat)"
+          schema:
+            type: string
+            enum: [newest, oldest, price_asc, price_desc, popular]
+            default: newest
       responses:
         200:
           description: Sukses mengambil daftar aset
@@ -628,6 +636,14 @@ paths:
           schema:
             type: integer
             format: int64
+        - name: sort
+          in: query
+          required: false
+          description: "Urutan daftar aset: newest, oldest, price_asc, price_desc, popular"
+          schema:
+            type: string
+            enum: [newest, oldest, price_asc, price_desc, popular]
+            default: newest
       responses:
         200:
           description: Sukses mengambil daftar aset admin

@@ -1,4 +1,4 @@
-package httputil
+package util
 
 import (
 	"net/http"
@@ -57,4 +57,3 @@ func ResponseError(c *gin.Context, code int, message string) {
 		Data:       nil,
 	})
 }
-

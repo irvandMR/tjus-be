@@ -2,20 +2,19 @@ package category
 
 import (
 	"tjus-be/internal/config"
-	"tjus-be/internal/features/auth"
 	"tjus-be/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
-func SetCategoryRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environment) {
+func SetCategoryRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Environment, rdb *redis.Client) {
 	repository := NewCategoryRepository(db)
 	service := NewCategoryService(repository)
 	handler := NewCategoryHandler(service)
 
-	authRepo := auth.NewAuthRepository(db)
-	authMiddleware := middleware.AuthMiddleware(authRepo, env)
+	authMiddleware := middleware.AuthMiddleware(rdb, env)
 
 	ctg := rg.Group("/category")
 	{
@@ -31,5 +30,4 @@ func SetCategoryRouter(rg *gin.RouterGroup, db *pgxpool.Pool, env *config.Enviro
 		ctg.GET("/:id/attributes", handler.GetAttributesByCategoryId)
 		ctg.DELETE("/attribute/:attr_id", authMiddleware, handler.DeleteAttribute)
 	}
-
 }

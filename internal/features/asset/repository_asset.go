@@ -289,7 +289,9 @@ func (ar *assetRepository) FindAll(ctx context.Context, filter AssetFilter) ([]A
 		return nil, 0, err
 	}
 
-	// Ambil data aset sesuai limit dan offset
+	orderBySQL := mapSortOrder(filter.Sort)
+
+	// Ambil data aset sesuai limit, offset, dan opsi pengurutan
 	query := fmt.Sprintf(`
 		SELECT 
 			id,
@@ -309,9 +311,9 @@ func (ar *assetRepository) FindAll(ctx context.Context, filter AssetFilter) ([]A
 			updated_at
 		FROM tbl_assets
 		%s
-		ORDER BY created_at DESC
+		ORDER BY %s
 		LIMIT $%d OFFSET $%d
-	`, whereSQL, argIdx, argIdx+1)
+	`, whereSQL, orderBySQL, argIdx, argIdx+1)
 
 	queryArgs := append(args, filter.Limit, filter.Offset)
 	rows, err := ar.db.Query(ctx, query, queryArgs...)
@@ -351,6 +353,24 @@ func (ar *assetRepository) FindAll(ctx context.Context, filter AssetFilter) ([]A
 	}
 
 	return assets, total, nil
+}
+
+// mapSortOrder memetakan query param sort ke klausa ORDER BY yang aman (whitelist anti SQL Injection)
+func mapSortOrder(sortParam string) string {
+	switch strings.ToLower(strings.TrimSpace(sortParam)) {
+	case "price_asc":
+		return "price ASC, created_at DESC"
+	case "price_desc":
+		return "price DESC, created_at DESC"
+	case "popular":
+		return "view_count DESC NULLS LAST, created_at DESC"
+	case "oldest":
+		return "created_at ASC"
+	case "newest":
+		return "created_at DESC"
+	default:
+		return "created_at DESC"
+	}
 }
 
 func (ar *assetRepository) UpdateAssetTx(ctx context.Context, tx pgx.Tx, asset *Asset) error {
